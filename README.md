@@ -2,16 +2,17 @@
 
 # RuuviTag native HomeKit firmware
 
-Custom firmware that makes a RuuviTag a **native Apple HomeKit accessory** over Bluetooth LE.
+Unofficial firmware that makes a RuuviTag work natively with **Apple HomeKit** over Bluetooth LE.
 No bridge, Homebridge or extra app: pair it in the Home app with a setup code. A HomePod or
 Apple TV acts as the home hub for remote access and automations.
 
-It is a fork of the official [Ruuvi firmware v3.31.1](https://github.com/ruuvi/ruuvi.firmware.c)
-(see [README.ruuvi.md](README.ruuvi.md)) with a new `homekit` build variant, built on Apple's
-open source [HomeKit ADK](https://github.com/apple/HomeKitADK) (non-commercial use).
+> **Unofficial hobby project.** Not affiliated with or endorsed by Ruuvi Innovations or Apple.
+> The accessory is not MFi certified, and iOS shows it as uncertified. Use it at your own risk.
 
-This is an unofficial hobby project, not affiliated with or endorsed by Ruuvi or Apple. The
-accessory is not MFi certified. Use it at your own risk.
+It is a fork of the official [Ruuvi firmware](https://github.com/ruuvi/ruuvi.firmware.c) v3.31.1
+by Ruuvi Innovations (original README: [README.ruuvi.md](README.ruuvi.md)) with a new `homekit`
+build variant, built on Apple's open source [HomeKit ADK](https://github.com/apple/HomeKitADK).
+See [Credits](#credits).
 
 | HomeKit service | Characteristics |
 | --- | --- |
@@ -50,9 +51,12 @@ Requirements: `arm-none-eabi-gcc`, `make`, `python3` with `cryptography`, `curl`
 Optional: `qrencode` to render the setup QR code.
 
 ```sh
-git submodule update --init --recursive
+git clone --recurse-submodules https://github.com/ondrejsevcik/ruuvitag-homekit-firmware.git
+cd ruuvitag-homekit-firmware
 tools/build_homekit.sh
 ```
+
+The script also initialises the submodules if the clone was made without them.
 
 The script downloads the nRF5 SDK 15.3 and Ruuvi's public "open" signing key (both checksum
 pinned), builds the firmware and writes to `dist/`:
@@ -156,3 +160,24 @@ and broadcast events, event rate limiting, identify, long writes, pairing remova
 | `external/HomeKitADK` | Apple HomeKit ADK (submodule) |
 
 Open work is tracked in [TODO.md](TODO.md).
+
+## Credits
+
+- [Ruuvi Innovations](https://ruuvi.com) and the contributors of
+  [ruuvi.firmware.c](https://github.com/ruuvi/ruuvi.firmware.c): this repository is their
+  firmware, with the `homekit` variant added. The drivers, board and endpoint libraries are their
+  submodules, and updates are signed with their public "open" key so the stock bootloader accepts
+  them.
+- Apple's [HomeKit ADK](https://github.com/apple/HomeKitADK): the HomeKit Accessory Protocol
+  implementation, included as a submodule.
+- [aiohomekit](https://github.com/Jc2k/aiohomekit) drives the end-to-end tests.
+
+## License
+
+The firmware is licensed under the BSD 3-Clause License, see [LICENSE](LICENSE): Ruuvi's original
+code is copyright (c) 2018 Ruuvi, and the HomeKit variant is copyright (c) 2026 Ondrej Sevcik under
+the same license.
+
+The HomeKit ADK in `external/HomeKitADK` is licensed under the Apache License 2.0. Apple provides
+the open source ADK for prototyping non-commercial accessories; commercial HomeKit accessories need
+the MFi Program. Submodules and the nRF5 SDK downloaded by the build script keep their own licenses.
