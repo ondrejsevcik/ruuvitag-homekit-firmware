@@ -47,7 +47,8 @@ aiohomekit_srp.SrpClient.set_server_public_key = _set_padded_server_public_key
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 SIM_BINARY = os.path.join(HERE, "..", "host", "_build", "hk_sim")
-SETUP_CODE = "518-08-582"  # tests/host test provisioning
+# Apple's public HomeKit ADK test vector, also used by the tests/host provisioning.
+SETUP_CODE = "518-08-582"
 CLIENT_MTU = int(os.environ.get("HK_MTU", "185"))
 
 log = logging.getLogger("hap_e2e")

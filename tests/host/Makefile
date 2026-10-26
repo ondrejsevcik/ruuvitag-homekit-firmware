@@ -86,6 +86,8 @@ $(BUILD)/crypto_test: $(ADK)/Tests/HAPCryptoTest.c $(HK)/crypto/HAPOberon.c $(AD
 	$(CC) $(CFLAGS) -Wno-unused-function -o $@ $(filter %.c,$^) $(HOST_OBERON) $(quiet_enums)
 
 # Checks the SRP salt/verifier produced by tools/homekit_provision.py.
+# Code and setup ID are Apple's public HomeKit ADK test vector
+# (Tests/HAPAccessorySetupGetSetupPayloadTest.c), not a real accessory's code.
 TEST_SETUP_CODE := 518-08-582
 $(BUILD)/test-setup/homekit_setup_info.h: $(ROOT)/tools/homekit_provision.py | $(BUILD)
 	python3 $< header $@ --state $(BUILD)/test-setup.json --code $(TEST_SETUP_CODE) --setup-id 7OSX --new
