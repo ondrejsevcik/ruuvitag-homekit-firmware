@@ -1,25 +1,10 @@
 # TODO
 
-## Before publishing
-
-- [ ] Rewrite the commit author. The commits use a placeholder identity
-      (`Ruuvi HomeKit Dev <ruuvi-homekit@localhost>`), which GitHub won't link to an account and
-      which reads like an official Ruuvi project. For example, with your GitHub noreply address:
-      `git rebase --root --exec 'git commit --amend --no-edit --reset-author'` after setting
-      `user.name` / `user.email`.
-- [ ] Pick a repository name that doesn't look official, e.g. `ruuvitag-homekit-firmware`.
-- [ ] Push only the `homekit` branch (`git push -u origin homekit`, optionally as `main`). Don't
-      use `git push --mirror` or `--all`: the local `refs/t3/*` checkpoint refs are tool state.
-- [ ] Never commit `homekit-setup.json`, `homekit-setup-qr.svg` or `dist/` (already in
-      `.gitignore`). Release builds made from your setup file would let anyone pair your
-      unpaired tags, so publish source only, or attach builds made with a throwaway setup code.
-- [ ] Optional: add a GitHub Actions workflow that runs the build, `make -C tests/host` and the
-      simulator end-to-end test.
+Open roadmap. Test reports from real tags are welcome.
 
 ## Verify on real hardware
 
-Checked so far (2026-10-25): DFU from stock 3.31.1, pairing and live values with a HomePod mini
-on one tag.
+Checked so far: DFU from stock 3.31.1, pairing and live values with a HomePod mini on one tag.
 
 - [ ] Measure the current draw (e.g. Nordic PPK2) and replace the estimates in README
       "Battery and range options". Compare with stock 3.31.1 on the same tag.
@@ -43,3 +28,5 @@ on one tag.
 - [ ] Revisit BLE connection parameters (slave latency) once current draw is measured. Skipped
       for now: the ADK drops idle links after about 10 s, and latency would slow HAP round trips.
 - [ ] Tune the event thresholds and the 5 minute limit after real-world use.
+- [ ] GitHub Actions workflow that runs the build, `make -C tests/host` and the simulator
+      end-to-end test.
