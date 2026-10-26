@@ -63,7 +63,7 @@ fi
 VERSION="$(git describe --tags --always --dirty 2>/dev/null || echo dev)"
 
 make -C "$TARGET" clean >/dev/null
-make -C "$TARGET" -j"$(nproc)" HOMEKIT=1 \
+make -C "$TARGET" -j"$(getconf _NPROCESSORS_ONLN)" HOMEKIT=1 \
     GNU_INSTALL_ROOT="$GNU_INSTALL_ROOT" GNU_VERSION="$GNU_VERSION" \
     FW_VERSION="-DAPP_FW_VERSION=\\\"v3.31.1-$VERSION\\\"" \
     DEBUG=-DNDEBUG MODE=-DAPPLICATION_MODE_HOMEKIT OPT="-Os -g3" HOMEKIT_OPTIONS="$HOMEKIT_OPTIONS"
