@@ -89,6 +89,13 @@ the SRP salt and verifier, not the code itself. An 8-digit code can still be bru
 from them, so anyone with the image can recover the code and pair with the tag whenever it is
 unpaired.
 
+### Several tags
+
+One image works for every tag. Each tag names itself after its MAC address (`RuuviTag A8CA`) and
+creates its own HomeKit identity and keys on first boot, so the tags pair independently. They
+share the setup code. The QR code fits every unpaired tag in range, so pair one tag at a time,
+or enter the code by hand and pick the tag by name.
+
 ## Flash
 
 1. Install **nRF Connect** or **nRF Device Firmware Update** (Nordic) on the phone and copy the
