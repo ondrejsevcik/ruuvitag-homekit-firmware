@@ -10,6 +10,9 @@ It is a fork of the official [Ruuvi firmware v3.31.1](https://github.com/ruuvi/r
 (see [README.ruuvi.md](README.ruuvi.md)) with a new `homekit` build variant, built on Apple's
 open source [HomeKit ADK](https://github.com/apple/HomeKitADK) (non-commercial use).
 
+This is an unofficial hobby project, not affiliated with or endorsed by Ruuvi or Apple. The
+accessory is not MFi certified. Use it at your own risk.
+
 | HomeKit service | Characteristics |
 | --- | --- |
 | Temperature Sensor | Current temperature (-40…85 °C, 0.1 °C) |
@@ -104,7 +107,7 @@ or enter the code by hand and pick the tag by name.
    - stock Ruuvi firmware: hold the button. After 5 s it erases its history log and restarts
      into the bootloader while you are still holding;
    - HomeKit firmware: hold the button 5–15 s and release (pairings are kept);
-   - either firmware: hold the button while inserting the battery or pressing reset.
+   - either firmware: hold **B**, tap **R** (reset), release **B**. The red LED stays lit.
 3. Connect to the device advertising as `RuuviBoot` and start the update with the zip.
 
 To go back to stock, first remove the accessory in the Home app, or hold the button 15 s.
@@ -151,3 +154,5 @@ and broadcast events, event rate limiting, identify, long writes, pairing remova
 | `tools/` | Build script, setup code provisioning, DFU packaging |
 | `tests/` | Host tests and simulator |
 | `external/HomeKitADK` | Apple HomeKit ADK (submodule) |
+
+Open work is tracked in [TODO.md](TODO.md).
