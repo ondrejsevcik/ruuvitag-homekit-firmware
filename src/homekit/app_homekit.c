@@ -74,6 +74,21 @@ static const HAPLogObject logObject = { .subsystem = "ruuvi", .category = "HomeK
 #define IDENTIFY_TOGGLES (6U)
 #define IDENTIFY_TOGGLE_MS (250U)
 
+/**
+ * While disconnected, each event is broadcast for kHAPBLENotification_MinDuration (3 s) and a
+ * new event replaces the running broadcast, so events are sent one at a time this far apart.
+ */
+#define EVENT_SPACING_MS (3100U)
+
+/** Events waiting to be raised, in sending order. */
+enum
+{
+    EVENT_TEMPERATURE = 1U << 0U,
+    EVENT_HUMIDITY    = 1U << 1U,
+    EVENT_BATTERY_LOW = 1U << 2U,
+    EVENT_BATTERY     = 1U << 3U,
+};
+
 static struct
 {
     HAPPlatformKeyValueStore key_value_store;
@@ -91,6 +106,12 @@ static struct
     float humidity;           //!< Latest reading, NAN if unknown.
     float event_temperature;  //!< Value of the last raised event.
     float event_humidity;     //!< Value of the last raised event.
+    HAPTime event_temperature_time; //!< Time of the last temperature event.
+    HAPTime event_humidity_time;    //!< Time of the last humidity event.
+    HAPTime event_time;             //!< Time of the last raised event of any characteristic.
+    bool has_event_time;            //!< event_time is valid.
+    unsigned int pending_events;    //!< EVENT_* bits.
+    HAPPlatformTimerRef event_timer;
     uint8_t battery_percent;
     bool battery_low;
     bool has_battery;
@@ -377,12 +398,102 @@ rd_status_t app_homekit_init (void)
     return RD_SUCCESS;
 }
 
-static void raise_event (const HAPCharacteristic * characteristic, const HAPService * service)
+_Static_assert ( (APP_HOMEKIT_ADVERTISING_INTERVAL_MS >= 160) && (APP_HOMEKIT_ADVERTISING_INTERVAL_MS <= 2500),
+                 "HAP allows regular advertising intervals of 160 .. 2500 ms");
+_Static_assert ( (APP_HOMEKIT_TX_POWER_DBM == -40) || (APP_HOMEKIT_TX_POWER_DBM == -20)
+                 || (APP_HOMEKIT_TX_POWER_DBM == -16) || (APP_HOMEKIT_TX_POWER_DBM == -12)
+                 || (APP_HOMEKIT_TX_POWER_DBM == -8) || (APP_HOMEKIT_TX_POWER_DBM == -4)
+                 || (APP_HOMEKIT_TX_POWER_DBM == 0) || (APP_HOMEKIT_TX_POWER_DBM == 3)
+                 || (APP_HOMEKIT_TX_POWER_DBM == 4),
+                 "nRF52832 supports -40, -20, -16, -12, -8, -4, 0, 3 and 4 dBm");
+
+static void event_timer_expired (HAPPlatformTimerRef timer, void * _Nullable context);
+
+/**
+ * @brief Raise pending events: all of them while connected, otherwise one per EVENT_SPACING_MS.
+ */
+static void raise_pending_events (void)
 {
-    if (m_hk.is_running)
+    static const struct
     {
-        HAPAccessoryServerRaiseEvent (&m_hk.server, characteristic, service, &m_hk.accessory);
+        unsigned int event;
+        const HAPCharacteristic * characteristic;
+        const HAPService * service;
+    } events[] =
+    {
+        { EVENT_TEMPERATURE, &homekit_temperature_characteristic, &homekit_temperature_service },
+        { EVENT_HUMIDITY, &homekit_humidity_characteristic, &homekit_humidity_service },
+        { EVENT_BATTERY_LOW, &homekit_battery_status_low_characteristic, &homekit_battery_service },
+        { EVENT_BATTERY, &homekit_battery_level_characteristic, &homekit_battery_service },
+    };
+
+    if (!m_hk.is_running)
+    {
+        m_hk.pending_events = 0;
+        return;
     }
+
+    bool connected = HAPPlatformBLEPeripheralManagerIsConnected (&m_hk.ble_peripheral_manager);
+    HAPTime now = HAPPlatformClockGetCurrent();
+
+    for (size_t i = 0; (i < HAPArrayCount (events)) && m_hk.pending_events; i++)
+    {
+        if (! (m_hk.pending_events & events[i].event))
+        {
+            continue;
+        }
+
+        if (!connected && m_hk.has_event_time && (now - m_hk.event_time < EVENT_SPACING_MS))
+        {
+            if (!m_hk.event_timer)
+            {
+                HAPError err = HAPPlatformTimerRegister (&m_hk.event_timer, m_hk.event_time + EVENT_SPACING_MS,
+                               event_timer_expired, NULL);
+                (void) err; // Out of timers: the next sensor sample retries.
+            }
+
+            return;
+        }
+
+        m_hk.pending_events &= ~events[i].event;
+        m_hk.event_time = now;
+        m_hk.has_event_time = true;
+        HAPAccessoryServerRaiseEvent (&m_hk.server, events[i].characteristic, events[i].service, &m_hk.accessory);
+    }
+}
+
+static void event_timer_expired (HAPPlatformTimerRef timer HAP_UNUSED, void * _Nullable context HAP_UNUSED)
+{
+    m_hk.event_timer = 0;
+    raise_pending_events();
+}
+
+/**
+ * @brief Decide whether a new reading is worth an event, see APP_HOMEKIT_EVENT_MIN_INTERVAL_MS.
+ *
+ * @param[in] value New reading.
+ * @param[in,out] event_value Value of the last event, updated if an event is due.
+ * @param[in,out] event_time Time of the last event, updated if an event is due.
+ * @param[in] delta Minimum change for an event.
+ * @param[in] urgent_delta Change that is sent without waiting for the minimum interval.
+ * @return True if an event should be raised.
+ */
+static bool event_due (const float value, float * const event_value, HAPTime * const event_time,
+                       const float delta, const float urgent_delta)
+{
+    HAPTime now = HAPPlatformClockGetCurrent();
+    float change = fabsf (value - *event_value);
+    bool due = isnan (*event_value)
+               || (change >= urgent_delta)
+               || ( (change >= delta) && (now - *event_time >= APP_HOMEKIT_EVENT_MIN_INTERVAL_MS));
+
+    if (due)
+    {
+        *event_value = value;
+        *event_time = now;
+    }
+
+    return due;
 }
 
 void app_homekit_sensor_update (const rd_sensor_data_t * const data)
@@ -399,11 +510,10 @@ void app_homekit_sensor_update (const rd_sensor_data_t * const data)
     {
         m_hk.temperature = temperature;
 
-        if (isnan (m_hk.event_temperature)
-                || fabsf (temperature - m_hk.event_temperature) >= APP_HOMEKIT_TEMPERATURE_EVENT_DELTA)
+        if (event_due (temperature, &m_hk.event_temperature, &m_hk.event_temperature_time,
+                       APP_HOMEKIT_TEMPERATURE_EVENT_DELTA, APP_HOMEKIT_TEMPERATURE_URGENT_DELTA))
         {
-            m_hk.event_temperature = temperature;
-            raise_event (&homekit_temperature_characteristic, &homekit_temperature_service);
+            m_hk.pending_events |= EVENT_TEMPERATURE;
         }
     }
 
@@ -411,13 +521,14 @@ void app_homekit_sensor_update (const rd_sensor_data_t * const data)
     {
         m_hk.humidity = humidity;
 
-        if (isnan (m_hk.event_humidity)
-                || fabsf (humidity - m_hk.event_humidity) >= APP_HOMEKIT_HUMIDITY_EVENT_DELTA)
+        if (event_due (humidity, &m_hk.event_humidity, &m_hk.event_humidity_time,
+                       APP_HOMEKIT_HUMIDITY_EVENT_DELTA, APP_HOMEKIT_HUMIDITY_URGENT_DELTA))
         {
-            m_hk.event_humidity = humidity;
-            raise_event (&homekit_humidity_characteristic, &homekit_humidity_service);
+            m_hk.pending_events |= EVENT_HUMIDITY;
         }
     }
+
+    raise_pending_events();
 }
 
 void app_homekit_battery_update (const float battery_voltage, const float temperature)
@@ -438,14 +549,16 @@ void app_homekit_battery_update (const float battery_voltage, const float temper
     if (level_changed)
     {
         m_hk.battery_percent = percent;
-        raise_event (&homekit_battery_level_characteristic, &homekit_battery_service);
+        m_hk.pending_events |= EVENT_BATTERY;
     }
 
     if (low_changed)
     {
         m_hk.battery_low = low;
-        raise_event (&homekit_battery_status_low_characteristic, &homekit_battery_service);
+        m_hk.pending_events |= EVENT_BATTERY_LOW;
     }
+
+    raise_pending_events();
 }
 
 bool app_homekit_is_operational (void)

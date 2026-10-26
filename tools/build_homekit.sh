@@ -2,7 +2,11 @@
 # Build the native HomeKit firmware for RuuviTag (ruuvitag_b) and package it for
 # over-the-air update with the stock Ruuvi bootloader.
 #
-# Usage: tools/build_homekit.sh
+# Usage: [HK_ADV_INTERVAL_MS=2000] [HK_TX_POWER_DBM=0] tools/build_homekit.sh
+#
+# Optional battery / range tuning (defaults in src/application_config/application_mode_homekit.h):
+#   HK_ADV_INTERVAL_MS  Regular advertising interval, 160 .. 2500 ms (default 1022.5).
+#   HK_TX_POWER_DBM     Transmit power: -40, -20, -16, -12, -8, -4, 0, 3 or 4 dBm (default 4).
 #
 # Outputs (dist/):
 #   ruuvitag_b_homekit_<version>_dfu_app.zip   Update package for nRF Connect / nRF Device Firmware Update
@@ -46,13 +50,23 @@ GCC="$(command -v arm-none-eabi-gcc)" || { echo "arm-none-eabi-gcc not found" >&
 GNU_INSTALL_ROOT="$(dirname "$GCC")/"
 GNU_VERSION="$(arm-none-eabi-gcc -dumpfullversion)"
 
+HOMEKIT_OPTIONS=""
+if [[ -n "${HK_ADV_INTERVAL_MS:-}" ]]; then
+    [[ "$HK_ADV_INTERVAL_MS" =~ ^[0-9]+(\.[0-9]+)?$ ]] || { echo "HK_ADV_INTERVAL_MS must be a number" >&2; exit 1; }
+    HOMEKIT_OPTIONS+=" -DAPP_HOMEKIT_ADVERTISING_INTERVAL_MS=${HK_ADV_INTERVAL_MS}"
+fi
+if [[ -n "${HK_TX_POWER_DBM:-}" ]]; then
+    [[ "$HK_TX_POWER_DBM" =~ ^-?[0-9]+$ ]] || { echo "HK_TX_POWER_DBM must be an integer" >&2; exit 1; }
+    HOMEKIT_OPTIONS+=" -DAPP_HOMEKIT_TX_POWER_DBM=${HK_TX_POWER_DBM}"
+fi
+
 VERSION="$(git describe --tags --always --dirty 2>/dev/null || echo dev)"
 
 make -C "$TARGET" clean >/dev/null
 make -C "$TARGET" -j"$(nproc)" HOMEKIT=1 \
     GNU_INSTALL_ROOT="$GNU_INSTALL_ROOT" GNU_VERSION="$GNU_VERSION" \
     FW_VERSION="-DAPP_FW_VERSION=\\\"v3.31.1-$VERSION\\\"" \
-    DEBUG=-DNDEBUG MODE=-DAPPLICATION_MODE_HOMEKIT OPT="-Os -g3"
+    DEBUG=-DNDEBUG MODE=-DAPPLICATION_MODE_HOMEKIT OPT="-Os -g3" HOMEKIT_OPTIONS="$HOMEKIT_OPTIONS"
 
 NAME="ruuvitag_b_homekit_${VERSION}"
 cp "$TARGET/_build/nrf52832_xxaa.hex" "dist/${NAME}_app.hex"

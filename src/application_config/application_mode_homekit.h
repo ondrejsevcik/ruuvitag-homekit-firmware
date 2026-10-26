@@ -9,6 +9,7 @@
  * - Bluetooth is owned by the HomeKit stack (src/homekit). Ruuvi advertisements,
  *   the Ruuvi GATT services (NUS, DIS, buttonless DFU) and history logging are disabled.
  * - NFC keeps working and shows the current readings in the Ruuvi app.
+ * - The accelerometer and the pressure sensor are powered down, HomeKit has no use for them.
  * - Button: hold 5 s to enter the bootloader for firmware updates (pairings are kept),
  *   hold 15 s to reset HomeKit pairings.
  */
@@ -21,31 +22,65 @@
 
 /** HomeKit firmware revision, must be "major[.minor[.revision]]". */
 #ifndef APP_HOMEKIT_FIRMWARE_REVISION
-#   define APP_HOMEKIT_FIRMWARE_REVISION "1.0.0"
+#   define APP_HOMEKIT_FIRMWARE_REVISION "1.1.0"
 #endif
 
-/** Sensor sampling interval. HomeKit is not real-time, slower sampling saves battery. */
+/**
+ * Sensor sampling interval. HomeKit reads get the latest sample, so this is the
+ * worst-case age of a value shown in the Home app. Slower sampling saves battery.
+ */
 #ifndef APP_HEARTBEAT_INTERVAL_MS
-#   define APP_HEARTBEAT_INTERVAL_MS (10000U)
+#   define APP_HEARTBEAT_INTERVAL_MS (30000U)
 #endif
 
-/** Regular HomeKit advertising interval. HAP allows 160 .. 2500 ms. */
+/**
+ * Regular HomeKit advertising interval in ms, HAP allows 160 .. 2500. Advertising is the
+ * largest constant power draw: 2000 ms roughly halves it, at the cost of up to about
+ * 1 s longer connection setup when the Home app is opened. Build option HK_ADV_INTERVAL_MS.
+ */
 #ifndef APP_HOMEKIT_ADVERTISING_INTERVAL_MS
 #   define APP_HOMEKIT_ADVERTISING_INTERVAL_MS (1022.5F)
 #endif
 
-/** Radio transmit power in dBm. Same as the Ruuvi default. */
+/**
+ * Radio transmit power in dBm: -40, -20, -16, -12, -8, -4, 0, 3 or 4. +4 is the Ruuvi
+ * default; 0 uses about a quarter less radio energy but shortens range.
+ * Build option HK_TX_POWER_DBM.
+ */
 #ifndef APP_HOMEKIT_TX_POWER_DBM
 #   define APP_HOMEKIT_TX_POWER_DBM (4)
 #endif
 
-/** Minimum changes that are pushed to HomeKit as events. Reads always get the latest value. */
+/**
+ * Value change events. Each event makes the tag advertise every 20 ms for 3 s (HAP
+ * requirement), about as much energy as 2.5 minutes of regular advertising, so events are
+ * limited: a change must reach the event delta, and events of one characteristic are at
+ * least APP_HOMEKIT_EVENT_MIN_INTERVAL_MS apart unless the change reaches the urgent delta.
+ * A held back change is sent by the first sample after the interval.
+ * Reads from the Home app always get the latest sample.
+ */
 #ifndef APP_HOMEKIT_TEMPERATURE_EVENT_DELTA
-#   define APP_HOMEKIT_TEMPERATURE_EVENT_DELTA (0.2F)
+#   define APP_HOMEKIT_TEMPERATURE_EVENT_DELTA (0.3F)
+#endif
+#ifndef APP_HOMEKIT_TEMPERATURE_URGENT_DELTA
+#   define APP_HOMEKIT_TEMPERATURE_URGENT_DELTA (1.0F)
 #endif
 #ifndef APP_HOMEKIT_HUMIDITY_EVENT_DELTA
-#   define APP_HOMEKIT_HUMIDITY_EVENT_DELTA (1.0F)
+#   define APP_HOMEKIT_HUMIDITY_EVENT_DELTA (2.0F)
 #endif
+#ifndef APP_HOMEKIT_HUMIDITY_URGENT_DELTA
+#   define APP_HOMEKIT_HUMIDITY_URGENT_DELTA (5.0F)
+#endif
+#ifndef APP_HOMEKIT_EVENT_MIN_INTERVAL_MS
+#   define APP_HOMEKIT_EVENT_MIN_INTERVAL_MS (5U * 60U * 1000U)
+#endif
+
+/**
+ * HomeKit has no use for acceleration and air pressure: the accelerometer and the
+ * pressure sensor are initialised only to put them into power down (a few uA saved).
+ * NFC then shows temperature, humidity and battery only.
+ */
+#define APP_SENSOR_POWER_DOWN_UNUSED (1U)
 
 /** Button hold times. */
 #ifndef APP_BUTTON_LONG_PRESS_TIME_MS

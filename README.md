@@ -21,9 +21,13 @@ Air pressure and acceleration are not exposed: HomeKit has no standard type for 
 ## What changes compared to the stock firmware
 
 - Bluetooth belongs to HomeKit. The tag **no longer sends Ruuvi broadcasts**, so Ruuvi Station
-  and Ruuvi Gateway stop seeing it. NFC still works and shows the current readings.
-- Sensors are sampled every 10 s. Changes (≥ 0.2 °C, ≥ 1 % RH) are pushed to the home hub as
-  encrypted HomeKit broadcasts, so the hub does not need to keep a connection open.
+  and Ruuvi Gateway stop seeing it. NFC still works and shows temperature, humidity and battery.
+- Sensors are sampled every 30 s; opening the Home app always reads the latest sample.
+  Changes are pushed to the home hub as encrypted HomeKit broadcasts, so the hub does not need
+  to keep a connection open. To save battery, a change must reach 0.3 °C or 2 % RH and is
+  pushed at most every 5 minutes, unless it reaches 1 °C or 5 % RH. Automations that trigger
+  on a value can therefore lag by up to about 5 minutes.
+- The accelerometer and the pressure sensor are powered down: HomeKit does not use them.
 - History logging, the Ruuvi GATT services (log download, configuration) and the remote
   "enter bootloader" (buttonless DFU) service are removed. Entering update mode needs the button.
 - Flash storage is limited to the 20 kB the Ruuvi bootloader preserves during updates, so
@@ -56,6 +60,25 @@ pinned), builds the firmware and writes to `dist/`:
 On the first build it creates `homekit-setup.json` with a random **setup code** and prints it
 (plus a QR code and `homekit-setup-qr.svg` if `qrencode` is installed). Keep the file: later
 builds reuse the code.
+
+### Battery and range options
+
+The defaults favour range and responsiveness. Two build options trade them for battery life:
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `HK_ADV_INTERVAL_MS` | `1022.5` | Advertising interval, 160–2500 ms. Advertising is the largest constant power draw; `2000` roughly halves it, and the Home app may take up to about 1 s longer to connect. |
+| `HK_TX_POWER_DBM` | `4` | Transmit power: -40, -20, -16, -12, -8, -4, 0, 3 or 4 dBm. `0` uses about a quarter less radio energy, with shorter range. |
+
+```sh
+HK_ADV_INTERVAL_MS=2000 HK_TX_POWER_DBM=0 tools/build_homekit.sh
+```
+
+Other tuning values (sampling interval, event thresholds) are in
+`src/application_config/application_mode_homekit.h`. These figures are estimates and have not
+been measured on a tag.
+
+### Setup code
 
 To choose your own code, run `tools/homekit_provision.py show --new --code 123-45-670`, then
 rebuild and flash again. The code is baked into the firmware, so a tag running an older build
@@ -108,7 +131,7 @@ padding, so about 1 pairing in 256 fails. iOS is not affected.
 the tag (runs natively on a Raspberry Pi). `tests/sim` runs the firmware's HomeKit code against a
 simulated SoftDevice and flash, driven by [aiohomekit](https://github.com/Jc2k/aiohomekit), the
 HomeKit controller used by Home Assistant: discovery, pair setup, pair verify, reads, connected
-and broadcast events, identify, long writes, pairing removal.
+and broadcast events, event rate limiting, identify, long writes, pairing removal.
 
 ## Layout
 

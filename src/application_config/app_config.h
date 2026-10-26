@@ -132,6 +132,15 @@
 #    define RI_LIS2DH12_ENABLED APP_SENSOR_LIS2DH12_ENABLED
 #endif
 
+/**
+ * @brief Power down sensors the application does not use (accelerometer, pressure sensor).
+ *
+ * They are initialised once to bring them into a known low-power state, then uninitialised.
+ */
+#ifndef APP_SENSOR_POWER_DOWN_UNUSED
+#   define APP_SENSOR_POWER_DOWN_UNUSED (0U)
+#endif
+
 /** @brief Enable SHTCX sensor */
 #ifndef APP_SENSOR_SHTCX_ENABLED
 #   define APP_SENSOR_SHTCX_ENABLED RB_ENVIRONMENTAL_SHTCX_PRESENT

@@ -411,7 +411,7 @@ async def scenario(sim: Simulator) -> None:
     check(v[batt_iid] == 28, f"battery level {v[batt_iid]} % at 2.64 V")
     check(v[low_iid] == 0, "battery not low at 2.64 V")
     check(v[name_iid] == "RuuviTag A8CA", f"name {v[name_iid]!r}")
-    check(v[fw_iid] == "1.0.0", f"firmware revision {v[fw_iid]!r}")
+    check(v[fw_iid] == "1.1.0", f"firmware revision {v[fw_iid]!r}")
 
     print("Event notifications (connected)")
     received: list[dict] = []
@@ -461,6 +461,33 @@ async def scenario(sim: Simulator) -> None:
     check(abs(got[-1] - 26.0) < 1e-6, f"broadcast value {got[-1]} °C")
     sim.status("TICK 5000")
     check(read_advertisement(sim).manufacturer_data[0x004C][0] == 0x06, "back to regular HomeKit advertising afterwards")
+
+    print("Event rate limit (changes below the urgent delta wait for the minimum interval)")
+    received.clear()
+    sim.status("SENSOR 26.5 50.0")
+    check(read_advertisement(sim).manufacturer_data[0x004C][0] == 0x06, "0.5 °C change shortly after an event is held back")
+    # Reads always get the latest sample. The connection also starts a new disconnected period:
+    # the GSN only advances once per period, and aiohomekit drops broadcasts with a reused GSN.
+    announce(sim, controller)
+    values = await pairing.get_characteristics([(1, temp_iid)])
+    check(abs(values[(1, temp_iid)]["value"] - 26.5) < 1e-6, "held back value is returned by reads")
+    await pairing.close()
+    sim.status("TICK 300000")
+    sim.status("SENSOR 26.5 50.0")
+    adv = announce(sim, controller)
+    check(adv.manufacturer_data[0x004C][0] == 0x11, "held back change is sent after the minimum interval")
+    check(await wait_for(lambda: any((1, temp_iid) in r for r in received)), "controller decrypted the delayed broadcast")
+    got = [r[(1, temp_iid)]["value"] for r in received if (1, temp_iid) in r]
+    check(abs(got[-1] - 26.5) < 1e-6, f"delayed broadcast value {got[-1]} °C")
+    # The humidity change (45.6 -> 50 %) came due in the same sample. A new broadcast replaces the
+    # running one, so it must wait until the temperature broadcast has run for 3 s.
+    check(not any((1, hum_iid) in r for r in received), "second event does not replace the running broadcast")
+    sim.status("TICK 3200")
+    announce(sim, controller)
+    check(await wait_for(lambda: any((1, hum_iid) in r for r in received)), "queued humidity event is broadcast next")
+    got = [r[(1, hum_iid)]["value"] for r in received if (1, hum_iid) in r]
+    check(abs(got[-1] - 50.0) < 1e-6, f"queued broadcast value {got[-1]} %")
+    sim.status("TICK 5000")
 
     print("Long writes (Prepare / Execute Write)")
     await pairing.close()

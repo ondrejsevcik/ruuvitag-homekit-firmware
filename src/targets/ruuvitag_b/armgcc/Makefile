@@ -17,6 +17,8 @@ include ${PROJ_DIR}/homekit/homekit_sources.make
 COMMON_SOURCES += $(HOMEKIT_SOURCES)
 COMMON_INCLUDES += $(HOMEKIT_INCLUDES)
 CFLAGS += $(HOMEKIT_CFLAGS)
+# Tuning options from tools/build_homekit.sh, e.g. -DAPP_HOMEKIT_TX_POWER_DBM=0.
+CFLAGS += $(HOMEKIT_OPTIONS)
 # The larger HomeKit GATT database needs more SoftDevice RAM.
 RUUVI_LINKER_SCRIPT := ruuvitag_b_homekit.ld
 # Nothing in the HomeKit variant allocates from the heap.

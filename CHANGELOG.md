@@ -1,4 +1,11 @@
 # Changelog
+## HomeKit 1.1.0 (based on 3.31.1)
+ - Battery: sample sensors every 30 s instead of 10 s
+ - Battery: power down the accelerometer and pressure sensor, HomeKit does not use them (NFC no longer shows acceleration and pressure)
+ - Battery: value change events need 0.3 °C / 2 % RH and are sent at most every 5 minutes per characteristic, unless the change reaches 1 °C / 5 % RH
+ - Fix simultaneous events overwriting each other's broadcast: while disconnected, events are sent one per 3 s broadcast window
+ - Build: `HK_ADV_INTERVAL_MS` and `HK_TX_POWER_DBM` options for `tools/build_homekit.sh`
+
 ## HomeKit 1.0.0 (based on 3.31.1)
  - Add `homekit` variant: native Apple HomeKit accessory over Bluetooth LE (temperature, humidity, battery), see README.md
  - HomeKit variant: Ruuvi broadcasts, Ruuvi GATT services, buttonless DFU and history logging removed; NFC kept

@@ -315,6 +315,31 @@ static void app_sensor_rtc_uninit (void)
     (void) ri_rtc_uninit();
 }
 
+/**
+ * @brief Check if a sensor is only initialised to power it down.
+ *
+ * Sensors keep running across a soft reset, e.g. when an earlier firmware left the
+ * accelerometer sampling, so unused sensors are initialised and then uninitialised,
+ * which puts them into their power down state.
+ *
+ * @param[in] index Index in m_sensors.
+ * @return True if the sensor is powered down after initialisation.
+ */
+static bool app_sensor_power_down_after_init (const size_t index)
+{
+    bool power_down = false;
+#if APP_SENSOR_POWER_DOWN_UNUSED
+#   if APP_SENSOR_DPS310_ENABLED
+    power_down |= (DPS310_INDEX == index);
+#   endif
+#   if APP_SENSOR_LIS2DH12_ENABLED
+    power_down |= (LIS2DH12_INDEX == index);
+#   endif
+#endif
+    (void) index;
+    return power_down;
+}
+
 rd_status_t app_sensor_init (void)
 {
     rd_status_t err_code = RD_SUCCESS;
@@ -349,7 +374,12 @@ rd_status_t app_sensor_init (void)
 
                       && (RD_ERROR_SELFTEST == init_code));
 
-            if (RD_SUCCESS == init_code)
+            if ( (RD_SUCCESS == init_code) && app_sensor_power_down_after_init (ii))
+            {
+                (void) m_sensors[ii]->sensor.uninit (&m_sensors[ii]->sensor, m_sensors[ii]->bus,
+                                                     m_sensors[ii]->handle);
+            }
+            else if (RD_SUCCESS == init_code)
             {
                 // Check for a configuration in flash.
                 init_code = rt_sensor_load (m_sensors[ii]);
